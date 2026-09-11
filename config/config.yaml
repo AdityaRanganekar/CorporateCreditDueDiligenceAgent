@@ -3,7 +3,7 @@ model_settings:
   max_retries: 3
 
 api_settings:
-  credit_scoring_url: "http://host.docker.internal:8000/predict_json"
-  ## credit_scoring_url: "http://localhost:8000/predict_json"   ## comment out when using console_tester
+  ##credit_scoring_url: "http://host.docker.internal:8000/predict_json"
+  credit_scoring_url: "http://localhost:8000/predict_json"   ## comment out when using console_tester
   timeout_seconds: 10.0
   
