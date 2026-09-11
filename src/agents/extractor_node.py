@@ -27,7 +27,7 @@ def extractor_node(state: CreditAgentState) -> dict:
     structured_llm = llm.with_structured_output(CreditFeaturesSchema)
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert financial analyst. Extract credit risk features from the provided text. Return numeric values strictly as numbers. Do not hallucinate or guess missing values; only extract data present in the text."),
+        ("system", "You are an expert financial analyst. Extract credit risk features from the provided text. Return numeric values strictly as numbers. Do not hallucinate or guess missing values, with one exception: if the text qualitatively indicates defaults, bankruptcies, or derogatory records but lacks an exact number, you must extract a minimum value of 1 for the corresponding fields (e.g., pub_rec, pub_rec_bankruptcies)."),
         ("user", "{document}")
     ])
     

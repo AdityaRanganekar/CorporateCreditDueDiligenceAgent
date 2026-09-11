@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from src.entity.state import CreditAgentState
@@ -31,6 +32,8 @@ def synthesizer_node(state: CreditAgentState) -> dict:
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a Senior Credit Risk Officer. Draft a formal, highly professional Credit Due Diligence Memorandum in Markdown format. 
         
+        The current date is {current_date}. You must use this exact date at the top of the memo.
+        
         You must incorporate:
         1. Context from the Raw Document.
         2. Specific financial ratios and metrics from the Extracted Features.
@@ -51,12 +54,17 @@ def synthesizer_node(state: CreditAgentState) -> dict:
             "raw_text": raw_text,
             "features": json.dumps(features, indent=2),
             "prediction": prediction,
-            "probability": probability
+            "probability": probability,
+            "current_date": datetime.today().strftime("%B %d, %Y")
         })
         
         logging.info("Underwriting memo drafted successfully.")
 
-        return {"underwriting_memo": response.content}
+        memo = response.content
+        if isinstance(memo, list) and len(memo) > 0 and isinstance(memo[0], dict):
+            memo = memo[0].get("text", str(memo))
+
+        return {"underwriting_memo": memo}
         
     except Exception as e:
         logging.error(f"Failed to synthesize memo in synthesizer_node: {e}")

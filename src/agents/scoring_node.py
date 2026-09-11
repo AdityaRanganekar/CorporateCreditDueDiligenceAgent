@@ -1,3 +1,4 @@
+import json
 from src.entity.state import CreditAgentState
 from src.tools.credit_api_client import score_credit_risk
 from src.logging.logger import logging
@@ -13,6 +14,10 @@ def scoring_node(state: CreditAgentState) -> dict:
     if not payload:
         logging.error("scoring_node failed: 'extracted_features' is missing or empty.")
         raise ValueError("State is missing 'extracted_features'. Cannot compute risk score.")
+
+    print("\n--- PAYLOAD SENT TO ML API ---")
+    print(json.dumps(payload, indent=2))
+    print("------------------------------\n")
         
     try:
         api_response = score_credit_risk(payload)

@@ -37,7 +37,7 @@ def compile_graph():
     )
 
     workflow.add_edge("synthesizer_node", END)
-    workflow.add_edge("human_review_node", END)
+    workflow.add_edge("human_review_node", "synthesizer_node")
 
     memory = MemorySaver()
     logging.info("StateGraph assembled and compiled successfully with MemorySaver.")
