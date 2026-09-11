@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 
 class CreditFeaturesSchema(BaseModel):
+    is_valid_financial_document: bool = Field(
+        default=True,
+        description=(
+            "Set to True if the input text contains coherent financial, loan, or credit details. "
+            "Set to False if the input is gibberish, conversational noise, or completely unrelated to credit."
+        )
+    )
     loan_amnt: float = Field(description="The requested loan amount")
     term: str = Field(description="Loan term, strictly format as ' 36 months' or ' 60 months'")
     int_rate: float = Field(description="Interest rate on the loan")

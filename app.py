@@ -5,12 +5,25 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from src.graph.workflow import compile_graph
 from src.logging.logger import logging
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(
     title="Corporate Credit Due Diligence API",
     description="LangGraph-powered agent for credit risk extraction and scoring.",
     version="1.0.0"
 )
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 graph = compile_graph()
 
@@ -25,7 +38,7 @@ class ApprovalRequest(BaseModel):
 async def graph_event_generator(request: DueDiligenceRequest):
     """
     Executes the LangGraph state machine and yields Server-Sent Events (SSE)
-    as each node completes its execution[cite: 4].
+    as each node completes its execution.
     """
     config = {"configurable": {"thread_id": request.thread_id}}
     initial_state = {"raw_document": request.raw_document}
@@ -44,6 +57,13 @@ async def graph_event_generator(request: DueDiligenceRequest):
                 "pending_node": current_state.next[0]
             })
             yield f"data: {pause_data}\n\n"
+        else:
+            memo = current_state.values.get("underwriting_memo", "No memo generated.")
+            complete_data = json.dumps({
+                "status": "completed",
+                "memo": memo
+            })
+            yield f"data: {complete_data}\n\n"
             
     except Exception as e:
         logging.error(f"Graph execution failed: {e}")

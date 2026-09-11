@@ -8,7 +8,7 @@ from src.logging.logger import logging
 def extractor_node(state: CreditAgentState) -> dict:
     """
     Reads the raw SEC document from the LangGraph state and uses Gemini Flash Lite
-    to deterministically extract the 20 financial features into a strict JSON payload.
+    to deterministically extract the financial features into a strict JSON payload.
     """
     logging.info("Executing extractor_node: Parsing raw document for credit features.")
     
@@ -27,7 +27,15 @@ def extractor_node(state: CreditAgentState) -> dict:
     structured_llm = llm.with_structured_output(CreditFeaturesSchema)
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert financial analyst. Extract credit risk features from the provided text. Return numeric values strictly as numbers. Do not hallucinate or guess missing values, with one exception: if the text qualitatively indicates defaults, bankruptcies, or derogatory records but lacks an exact number, you must extract a minimum value of 1 for the corresponding fields (e.g., pub_rec, pub_rec_bankruptcies)."),
+        (
+            "system",
+            "You are an expert financial analyst. Analyze the provided text and extract credit risk features.\n"
+            "1. If the input text is gibberish, conversational banter, or contains no identifiable loan or financial metrics, "
+            "set 'is_valid_financial_document' to False.\n"
+            "2. If the text contains recognizable loan or borrower information, set 'is_valid_financial_document' to True.\n"
+            "3. Return numeric values strictly as numbers. If qualitative evidence of bankruptcies, defaults, or derogatory "
+            "records is present without an explicit count, assign a minimum value of 1 to those fields."
+        ),
         ("user", "{document}")
     ])
     
@@ -36,9 +44,14 @@ def extractor_node(state: CreditAgentState) -> dict:
     try:
         extracted_record = extraction_chain.invoke({"document": raw_text})
         payload = extracted_record.model_dump()
-        logging.info("Extractor node completed successfully.")
+        is_valid = payload.get("is_valid_financial_document", True)
+        
+        logging.info(f"Extractor node completed successfully. is_valid_financial_document={is_valid}")
 
-        return {"extracted_features": payload}
+        return {
+            "extracted_features": payload,
+            "is_valid_financial_document": is_valid
+        }
         
     except Exception as e:
         logging.error(f"Failed to extract features in extractor_node: {e}")

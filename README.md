@@ -1,0 +1,1 @@
+$50,000 commercial loan, 24 months, 25% interest. $2,200 monthly. Income $15,000. DTI 85%. 4 previous bankruptcies.
