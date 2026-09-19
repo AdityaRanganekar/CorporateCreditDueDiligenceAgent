@@ -28,6 +28,8 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null)
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
   const handleSend = async () => {
     if (!inputText.trim()) return
 
@@ -37,7 +39,7 @@ export default function App() {
     setIsStreaming(true)
     setPendingReview(null)
 
-    await fetchEventSource('http://localhost:8080/analyze', {
+    await fetchEventSource(`${API_URL}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ raw_document: inputText, thread_id: threadId }),
@@ -70,7 +72,7 @@ export default function App() {
     setIsStreaming(true)
     
     try {
-      const response = await fetch('http://localhost:8080/approve', {
+      const response = await fetch(`${API_URL}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ thread_id: pendingReview.thread_id, approve })
