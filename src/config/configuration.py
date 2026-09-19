@@ -28,7 +28,10 @@ class ConfigurationManager:
     def get_api_config(self) -> APIConfig:
         config = self.config["api_settings"]
         logging.info("API configuration extracted successfully.")
+
+        scoring_url = os.getenv("CREDIT_SCORING_URL", config["credit_scoring_url"])
+        
         return APIConfig(
-            credit_scoring_url=config["credit_scoring_url"],
+            credit_scoring_url=scoring_url,
             timeout_seconds=config["timeout_seconds"]
         )
