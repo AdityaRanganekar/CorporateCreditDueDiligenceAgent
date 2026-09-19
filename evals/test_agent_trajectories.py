@@ -21,7 +21,7 @@ GOLDEN_CASES = [
     ),
     (
         "Loan amount $5,000. Term 12 months. Interest 4%. Income $60,000. DTI 15%. No public records.", 
-        False, 5000.0, 15.0
+        True, 5000.0, 15.0
     ),
     (
         "Seeking $750,000. Revenue $40,000. DTI 90%. 3 bankruptcies. 60 month term, 18% rate.", 
