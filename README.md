@@ -4,8 +4,8 @@ Corporate Credit Due Diligence Agent is a LangGraph-based underwriting workflow.
 
 The repository contains:
 
-- A Python/FastAPI backend and LangGraph workflow.
-- A React/TypeScript/Vite frontend for streaming analysis and human review.
+- A Python/FastAPI backend and LangGraph workflow (Deployed on Render).
+- A React/TypeScript/Vite frontend for streaming analysis and human review (Deployed on AWS Amplify).
 - Unit tests and trajectory evaluations for extraction and routing behavior.
 - A Docker image for the backend API.
 
@@ -13,14 +13,14 @@ The repository contains:
 
 ```mermaid
 flowchart TD
-    U[Underwriter] --> FE[React frontend<br/>Vite development server]
-    FE -->|POST /analyze<br/>Server-Sent Events| API[FastAPI application]
+    U[Underwriter] --> FE[React frontend<br/>AWS Amplify]
+    FE -->|POST /analyze<br/>Server-Sent Events| API[FastAPI application<br/>Render]
     API --> LG[Compiled LangGraph<br/>MemorySaver checkpointer]
     LG --> EX[Extractor node<br/>Gemini structured output]
     EX --> VF{Valid financial<br/>document?}
     VF -->|No| INV[Invalid input node]
     VF -->|Yes| SC[Scoring node]
-    SC --> CR[Credit scoring API<br/>POST /predict_json]
+    SC --> CR[Credit scoring API<br/>AWS Elastic Beanstalk]
     CR --> R{predicted_default}
     R -->|0| SY[Synthesizer node<br/>Gemini memo generation]
     R -->|1| HR[Human review interrupt]
@@ -60,7 +60,7 @@ The graph stores execution state by `thread_id`. `/analyze` streams node updates
 ├── app.py                         FastAPI application and HTTP/SSE endpoints
 ├── main.py                        Local graph runner
 ├── console_tester.py              Interactive local runner with approval prompt
-├── config/config.yaml             Model and scoring API configuration
+├── config/config.yaml             Model and local scoring API configuration
 ├── src/
 │   ├── agents/                    Extraction, scoring, and synthesis nodes
 │   ├── config/                    YAML-backed configuration manager
@@ -82,33 +82,22 @@ The graph stores execution state by `thread_id`. `/analyze` streams node updates
 - Python 3.12
 - Node.js and npm (for the frontend)
 - A Google API key with access to the configured Gemini model
-- A running instance of the [CreditRiskScoring](https://github.com/AdityaRanganekar/CreditRiskScoring) service
+- A running instance of the [CreditRiskScoring](https://github.com/AdityaRanganekar/CreditRiskScoring) service (hosted on AWS Elastic Beanstalk)
 
 ## Configuration
 
-Create a `.env` file in the repository root:
+For local development, create a `.env` file in the repository root:
 
 ```dotenv
 GOOGLE_API_KEY=your-google-api-key
 ```
 
-Edit `config/config.yaml` as needed:
+When deploying to Render, you must inject these variables into the Web Service Environment Variables:
+- `GOOGLE_API_KEY`: Your Gemini API key
+- `CREDIT_SCORING_URL`: The live endpoint for your AWS Elastic Beanstalk ML service
+- `PORT`: `8080` (to route Render traffic to Uvicorn)
 
-```yaml
-model_settings:
-  model_name: "gemini-3.5-flash-lite"
-  max_retries: 3
-
-api_settings:
-  ## credit_scoring_url: "http://host.docker.internal:8000/predict_json"
-  credit_scoring_url: "http://localhost:8000/predict_json"
-  timeout_seconds: 10.0
-```
-
-The deterministic scoring service is maintained in the separate
-[CreditRiskScoring repository](https://github.com/AdityaRanganekar/CreditRiskScoring). Start that
-service before running this project. It must accept the extracted feature payload as JSON and
-return at least:
+The deterministic scoring service is maintained in the separate [CreditRiskScoring repository](https://github.com/AdityaRanganekar/CreditRiskScoring). It must accept the extracted feature payload as JSON and return at least:
 
 ```json
 {
@@ -117,7 +106,7 @@ return at least:
 }
 ```
 
-`predicted_default` is treated as `0` for standard processing and `1` for human escalation. The configured URL is loaded at runtime by `ConfigurationManager`; it is not supplied as an environment-variable override.
+`predicted_default` is treated as `0` for standard processing and `1` for human escalation. 
 
 ## Backend setup and use
 
@@ -157,16 +146,6 @@ or:
 {"status":"interrupted","pending_node":"human_review_node"}
 ```
 
-### Approve or reject a paused review
-
-```bash
-curl -X POST http://localhost:8080/approve \
-  -H "Content-Type: application/json" \
-  -d '{"thread_id":"demo-1","approve":true}'
-```
-
-An approval resumes synthesis and returns `final_memo`. A rejection returns an aborted status.
-
 ### Run without the HTTP server
 
 ```bash
@@ -183,7 +162,12 @@ npm ci
 npm run dev
 ```
 
-The Vite development server normally runs at `http://localhost:5173`. The UI is configured to call the backend at `http://localhost:8080`; the backend CORS policy permits that origin. The interface supports:
+The Vite development server normally runs at `http://localhost:5173`. 
+
+To connect the frontend to the deployed Render backend on AWS Amplify, navigate to your Amplify environment settings and configure:
+- `VITE_API_URL`: `https://[your-render-service].onrender.com`
+
+The React interface uses `import.meta.env.VITE_API_URL` to route requests, bypassing hardcoded localhost URLs. The interface supports:
 
 - Pasting raw loan application text.
 - Streaming graph activity through SSE.
@@ -191,16 +175,11 @@ The Vite development server normally runs at `http://localhost:5173`. The UI is 
 - Rendering the returned Markdown memo.
 - Exporting a memo as a PDF in the browser.
 
-For a production frontend build:
+## Docker and Production Deployment
 
-```bash
-npm run build
-npm run preview
-```
+The backend is configured to be automatically built and deployed as a Docker container on Render via a GitHub integration. Every push to `main` triggers Render to pull the repository, build the `Dockerfile`, and deploy the updated image to a secure HTTPS URL.
 
-## Docker
-
-Build and run the backend container:
+If building locally:
 
 ```bash
 docker build -t corporate-credit-due-diligence .
@@ -208,38 +187,6 @@ docker run --rm -p 8080:8080 \
   --env-file .env \
   corporate-credit-due-diligence
 ```
-
-Before running the container, update `config/config.yaml` for host-based scoring-service access:
-
-```yaml
-api_settings:
-  credit_scoring_url: "http://host.docker.internal:8000/predict_json"
-  ## credit_scoring_url: "http://localhost:8000/predict_json"
-```
-
-In other words, comment out the second `credit_scoring_url` entry and uncomment the first
-`host.docker.internal` entry. The Docker container cannot reach a scoring service running on the
-host through `localhost`, because `localhost` refers to the container itself. Start the
-[CreditRiskScoring service](https://github.com/AdityaRanganekar/CreditRiskScoring) on the host
-before launching this container. On Linux, `host.docker.internal` may require adding
-`--add-host=host.docker.internal:host-gateway` to `docker run`.
-
-For local `uvicorn` or `console_tester.py` execution, reverse the configuration: comment out the
-`host.docker.internal` URL and uncomment the `localhost` URL.
-
-The image installs Python dependencies, copies `src/`, `config/`, and `app.py`, and starts Uvicorn on port `8080`.
-
-## Data model
-
-The extractor populates `CreditFeaturesSchema`, including:
-
-- Loan terms: amount, term, interest rate, and installment.
-- Borrower profile: income, employment length, home ownership, and verification status.
-- Credit profile: DTI, account counts, revolving balance/utilization, public records, mortgages, and bankruptcies.
-- Loan purpose and address state.
-- `is_valid_financial_document`, which short-circuits unrelated or incoherent input.
-
-The LangGraph state additionally carries the raw document, extracted features, risk prediction, risk probability, and generated underwriting memo.
 
 ## Testing and CI
 
@@ -250,18 +197,19 @@ pytest tests/ -v
 pytest evals/ -v
 ```
 
-The CI workflow runs Python 3.12, Flake8 syntax/quality checks, unit tests, and trajectory evaluations. The trajectory cases verify feature extraction and ensure high-risk profiles interrupt at `human_review_node` while lower-risk profiles produce a memo.
+The CI workflow (`main.yml`) runs on GitHub Actions for every push and pull request. It executes Python 3.12 Flake8 syntax/quality checks, unit tests, and trajectory evaluations. 
+
+The trajectory cases verify feature extraction and ensure high-risk profiles interrupt at `human_review_node` while lower-risk profiles bypass human review and produce a memo. *Note: Trajectory evaluations require both `GOOGLE_API_KEY` and `CREDIT_SCORING_URL` to be present in your GitHub Repository Secrets to successfully contact the Beanstalk scoring API.*
 
 ## Limitations and operational considerations
 
 - The Gemini model and API key are required for extraction and synthesis; the workflow does not provide an offline LLM fallback.
 - The deterministic scoring service is maintained separately in the [CreditRiskScoring repository](https://github.com/AdityaRanganekar/CreditRiskScoring) and must be running at the configured URL.
-- `MemorySaver` is process-local memory. Thread state is lost on process restart and is not suitable as durable production persistence.
-- The API currently enables CORS only for `http://localhost:5173`.
+- `MemorySaver` is process-local memory. Thread state is lost on process restart and is not suitable as durable production persistence. Render cold starts will clear active sessions.
+- The FastAPI backend configures a wildcard CORS policy (`allow_origins=["*"]`) to allow connections from the remote AWS Amplify frontend. 
 - `/analyze` emits errors as SSE data events rather than a separate structured HTTP error response once streaming has begun.
-- The default graph interrupt is based on `predicted_default == 1`; no additional policy thresholding is implemented in this repository.
 - The input is treated as text. `load_financial_document` can read and normalize a local text extract, but no upload endpoint or SEC retrieval integration is implemented.
-- The Docker image contains only the backend; the frontend is built and served separately.
+- Render free tier instances will sleep after 15 minutes of inactivity, resulting in a ~50 second cold-start delay for the first request.
 
 ## License
 
