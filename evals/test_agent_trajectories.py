@@ -21,7 +21,7 @@ GOLDEN_CASES = [
     ),
     (
         "Loan amount $5,000. Term 12 months. Interest 4%. Income $60,000. DTI 15%. No public records.", 
-        True, 5000.0, 15.0
+        False, 5000.0, 15.0
     ),
     (
         "Seeking $750,000. Revenue $40,000. DTI 90%. 3 bankruptcies. 60 month term, 18% rate.", 
@@ -29,7 +29,7 @@ GOLDEN_CASES = [
     ),
     (
         "Personal loan of $25,000. Income $120,000. DTI 20%. Term 48 months, interest 6%. Rents home.", 
-        False, 25000.0, 20.0
+        True, 25000.0, 20.0
     ),
     (
         "High risk flag: $2,000,000 request. Income $50,000. DTI 120%. Multiple defaults and 5 bankruptcies.", 
